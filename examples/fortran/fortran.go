@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"log"
 	"math/rand/v2"
 	"strings"
@@ -32,43 +33,78 @@ func main() {
 		Coefs:   make([]perfect.Coef, 4),
 	}
 	for i := range hasher.Coefs {
-		hasher.Coefs[0].IndexApplied = i
+		if i < 2 {
+			hasher.Coefs[i].IndexApplied = i
+		} else {
+			hasher.Coefs[i].IndexApplied = i - len(hasher.Coefs)
+		}
 	}
-	hasher.Coefs[2].IndexApplied = -2
-	hasher.Coefs[3].IndexApplied = -1
 	err := hasher.ConfigCoefs(maxCoef)
 	if err != nil {
 		log.Fatal(err)
 	}
 	var phf perfect.HashFinder
-	rng := rand.New(rand.NewPCG(1, 1))
 	log.Printf("Searching perfect hash for %d intrinsics with %d coefficients", len(intrinsics), len(hasher.Coefs)+1)
-	tableBits := []int{10, 11}
 	randomRetries := 1000
 	attempts := 0
-	for _, tbits := range tableBits {
-		for range randomRetries {
-			for i := range hasher.Coefs {
-				randomizeCoef(&hasher.Coefs[i], rng, maxCoef, neighborhoodSearchSpace)
-			}
-			currentAttempts, err := phf.Search(hasher, tbits, intrinsics)
-			attempts += currentAttempts
-			if err == nil {
-				log.Printf("perfect hash found after %d attempts:\n%s", attempts, hasher.String())
-				return
-			} else if err != nil && currentAttempts == 0 {
-				log.Fatal(err)
-			}
+	found := false
+	for _, tbits := range []int{10, 11} {
+		a, err := randomSearch(hasher, &phf, intrinsics, tbits, randomRetries)
+		attempts += a
+		if err == nil {
+			found = true
+			break
+		} else if !errors.Is(err, perfect.ErrNoCoefficientsFound) {
+			log.Fatal(err)
 		}
 	}
-	log.Fatalln("no perfect hash found after", attempts, "attempts")
+	if !found {
+		log.Printf("intrinsics: no perfect hash found after %d attempts", attempts)
+	} else {
+		log.Printf("intrinsics: perfect hash found after %d attempts:\n%s", attempts, hasher.String())
+	}
+	found = false
+	attempts = 0
+	for _, tbits := range []int{10, 11} {
+		a, err := randomSearch(hasher, &phf, keywords, tbits, randomRetries)
+		attempts += a
+		if err == nil {
+			found = true
+			break
+		} else if !errors.Is(err, perfect.ErrNoCoefficientsFound) {
+			log.Fatal(err)
+		}
+	}
+	if !found {
+		log.Printf("keywords: no perfect hash found after %d attempts", attempts)
+	} else {
+		log.Printf("keywords: perfect hash found after %d attempts:\n%s", attempts, hasher.String())
+	}
+}
+
+func randomSearch(hasher *perfect.HashSequential, phf *perfect.HashFinder, words []string, tableBits int, randomRetries int) (attempts int, err error) {
+	const neighborhoodSearchSpace = 10
+	rng := rand.New(rand.NewPCG(1, 1))
+	for range randomRetries {
+		for i := range hasher.Coefs {
+			randomizeCoef(&hasher.Coefs[i], rng, neighborhoodSearchSpace)
+		}
+		currentAttempts, err := phf.Search(hasher, tableBits, words)
+		attempts += currentAttempts
+		if err == nil {
+			return attempts, nil
+		} else if !errors.Is(err, perfect.ErrNoCoefficientsFound) {
+			return attempts, err
+		}
+	}
+	return attempts, perfect.ErrNoCoefficientsFound
 }
 
 var ops = []perfect.Op{perfect.OpAdd, perfect.OpXor, perfect.OpMul}
 
-func randomizeCoef(c *perfect.Coef, rng *rand.Rand, maxCoef int, searchSpace int) {
-	start := rng.IntN(maxCoef)
-	end := min(start+searchSpace, maxCoef)
+func randomizeCoef(c *perfect.Coef, rng *rand.Rand, searchSpace int) {
+	start := rng.IntN(int(c.MaxValue))
+	end := min(start+searchSpace, int(c.MaxValue))
 	*c = perfect.Coef{
 		IndexApplied: c.IndexApplied, // Keep indexing, user should provide intelligence here on best indexing.
 		Value:        uint(start),

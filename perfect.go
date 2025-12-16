@@ -39,7 +39,7 @@ func (hs *HashSequential) ConfigCoefs(defaultMax uint) error {
 }
 
 func (hs *HashSequential) String() string {
-	s := fmt.Sprintf("\nh := uint(len(s))*%d\n", hs.LenCoef.Value)
+	s := fmt.Sprintf("h := uint(len(s))*%d\n", hs.LenCoef.Value)
 	for _, c := range hs.Coefs {
 		pfx := ""
 		if c.IndexApplied < 0 {
