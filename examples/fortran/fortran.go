@@ -2,9 +2,11 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"math/rand/v2"
 	"strings"
+	"time"
 
 	"github.com/soypat/perfect"
 )
@@ -44,10 +46,11 @@ func main() {
 		log.Fatal(err)
 	}
 	var phf perfect.HashFinder
-	log.Printf("Searching perfect hash for %d intrinsics with %d coefficients", len(intrinsics), len(hasher.Coefs)+1)
+	log.Printf("intrinsics: Searching perfect hash for %d intrinsics with %d coefficients", len(intrinsics), len(hasher.Coefs)+1)
 	randomRetries := 1000
 	attempts := 0
 	found := false
+	tm := timer("intrinsic search")
 	for _, tbits := range []int{10, 11} {
 		a, err := randomSearch(hasher, &phf, intrinsics, tbits, randomRetries)
 		attempts += a
@@ -58,13 +61,16 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	if !found {
-		log.Printf("intrinsics: no perfect hash found after %d attempts", attempts)
-	} else {
+	if found {
+		tm()
 		log.Printf("intrinsics: perfect hash found after %d attempts:\n%s", attempts, hasher.String())
+	} else {
+		log.Printf("intrinsics: no perfect hash found after %d attempts", attempts)
 	}
 	found = false
 	attempts = 0
+	log.Printf("keywords: Searching perfect hash for %d keywords with %d coefficients", len(keywords), len(hasher.Coefs)+1)
+	tm = timer("keyword search")
 	for _, tbits := range []int{10, 11} {
 		a, err := randomSearch(hasher, &phf, keywords, tbits, randomRetries)
 		attempts += a
@@ -75,10 +81,11 @@ func main() {
 			log.Fatal(err)
 		}
 	}
-	if !found {
-		log.Printf("keywords: no perfect hash found after %d attempts", attempts)
-	} else {
+	if found {
+		tm()
 		log.Printf("keywords: perfect hash found after %d attempts:\n%s", attempts, hasher.String())
+	} else {
+		log.Printf("keywords: no perfect hash found after %d attempts", attempts)
 	}
 }
 
@@ -114,6 +121,14 @@ func randomizeCoef(c *perfect.Coef, rng *rand.Rand, searchSpace int) {
 		Op:           ops[rng.IntN(len(ops))],
 	}
 
+}
+
+func timer(context string) func() {
+	start := time.Now()
+	return func() {
+		elapsed := time.Since(start)
+		fmt.Printf("[%s] %s\n", elapsed.Round(time.Microsecond), context)
+	}
 }
 
 // Install stringer tool:
