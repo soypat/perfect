@@ -29,7 +29,6 @@ func main() {
 		intrinsics = append(intrinsics, s)
 	}
 	const maxCoef = 64
-	const neighborhoodSearchSpace = 10
 	hasher := &perfect.HashSequential{
 		LenCoef: perfect.Coef{MaxValue: maxCoef},
 		Coefs:   make([]perfect.Coef, 4),

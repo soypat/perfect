@@ -5,7 +5,6 @@ package perfect
 import (
 	"errors"
 	"fmt"
-	"math/rand/v2"
 	"slices"
 )
 
@@ -83,23 +82,6 @@ type Coef struct {
 	StartValue   uint
 	OnlyPow2     bool
 	Op           Op
-}
-
-func randomizeCoefs(coefs []Coef, rng *rand.Rand, maxCoef, searchSpace int) {
-	ops := []Op{OpAdd, OpXor, OpMul}
-	for i := range len(coefs) {
-		c := &coefs[i]
-		start := rng.IntN(maxCoef)
-		end := min(start+searchSpace, maxCoef)
-		*c = Coef{
-			IndexApplied: c.IndexApplied, // Keep indexing, user should provide intelligence here on best indexing.
-			Value:        0,
-			StartValue:   uint(start),
-			MaxValue:     uint(end),
-			OnlyPow2:     false,
-			Op:           ops[rng.IntN(len(ops))],
-		}
-	}
 }
 
 // ErrNoCoefficientsFound is returned when no perfect hash exists in the search space.
