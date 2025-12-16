@@ -85,22 +85,32 @@ See [`examples/`](examples/) for complete examples:
 
 ```
 go run ./examples/fortran
-2025/12/16 11:28:50 intrinsics: Searching perfect hash for 82 intrinsics with 5 coefficients
-[54µs] intrinsic search
-2025/12/16 11:28:50 intrinsics: perfect hash found after 185 attempts:
+2025/12/16 12:25:36 intrinsics: Searching perfect hash for 82 intrinsics with 5 coefficients
+[59µs] intrinsic search
+2025/12/16 12:25:36 intrinsics: perfect hash found after 185 attempts:
 h := uint(len(s))*1
 h += uint(s[0])*56
 h *= uint(s[1])*47
 h *= uint(s[len(s)-2])*7
 h += uint(s[len(s)-1])*34
-2025/12/16 11:28:50 keywords: Searching perfect hash for 95 keywords with 5 coefficients
-[40µs] keyword search
-2025/12/16 11:28:50 keywords: perfect hash found after 105 attempts:
+2025/12/16 12:25:36 keywords: Searching perfect hash for 95 keywords with 5 coefficients
+[34µs] keyword search
+2025/12/16 12:25:36 keywords: perfect hash found after 105 attempts:
 h := uint(len(s))*1
 h += uint(s[0])*56
 h *= uint(s[1])*51
 h *= uint(s[len(s)-2])*5
 h += uint(s[len(s)-1])*35
+2025/12/16 12:25:36 vendored: Searching perfect hash for 117 intrinsics(vendored) with 7 coefficients
+[49.605ms] vendored intrinsic search
+2025/12/16 12:25:36 vendored: perfect hash found after 160986 attempts:
+h := uint(len(s))*1
+h += uint(s[0])*57
+h *= uint(s[1])*49
+h *= uint(s[len(s)-2])*8
+h += uint(s[len(s)-1])*43
+h += uint(s[2])*58
+h *= uint(s[len(s)-3])*47
 ```
 
 ## License

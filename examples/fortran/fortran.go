@@ -13,7 +13,7 @@ import (
 
 func main() {
 	// Populate intrinsics, keywords.
-	var keywords, intrinsics []string
+	var keywords, intrinsics, vendored []string
 	for kw := keywordBeg + 1; kw < keywordEnd; kw++ {
 		s := kw.String()
 		if strings.ToUpper(s) != s {
@@ -27,6 +27,12 @@ func main() {
 			continue // is a separator token.
 		}
 		intrinsics = append(intrinsics, s)
+	}
+	for vndr := vendorUndefined + 1; vndr < vendorPGIEnd; vndr++ {
+		if !vndr.IsValid() {
+			continue
+		}
+		vendored = append(vendored, vndr.String())
 	}
 	const maxCoef = 64
 	hasher := &perfect.HashSequential{
@@ -45,6 +51,9 @@ func main() {
 		log.Fatal(err)
 	}
 	var phf perfect.HashFinder
+
+	// SEARCH INTRINSICS.
+
 	log.Printf("intrinsics: Searching perfect hash for %d intrinsics with %d coefficients", len(intrinsics), len(hasher.Coefs)+1)
 	randomRetries := 1000
 	attempts := 0
@@ -66,6 +75,9 @@ func main() {
 	} else {
 		log.Printf("intrinsics: no perfect hash found after %d attempts", attempts)
 	}
+
+	// SEARCH KEYWORDS.
+
 	found = false
 	attempts = 0
 	log.Printf("keywords: Searching perfect hash for %d keywords with %d coefficients", len(keywords), len(hasher.Coefs)+1)
@@ -85,6 +97,32 @@ func main() {
 		log.Printf("keywords: perfect hash found after %d attempts:\n%s", attempts, hasher.String())
 	} else {
 		log.Printf("keywords: no perfect hash found after %d attempts", attempts)
+	}
+
+	// SEARCH VENDORED INTRINSICS.
+
+	// Require more search space for this one, add two coefficients.
+	hasher.Coefs = append(hasher.Coefs, perfect.Coef{IndexApplied: 2}, perfect.Coef{IndexApplied: -3})
+	hasher.ConfigCoefs(maxCoef)
+	found = false
+	attempts = 0
+	log.Printf("vendored: Searching perfect hash for %d intrinsics(vendored) with %d coefficients", len(vendored), len(hasher.Coefs)+1)
+	tm = timer("vendored intrinsic search")
+	for _, tbits := range []int{10, 11} {
+		a, err := randomSearch(hasher, &phf, vendored, tbits, randomRetries)
+		attempts += a
+		if err == nil {
+			found = true
+			break
+		} else if !errors.Is(err, perfect.ErrNoCoefficientsFound) {
+			log.Fatal(err)
+		}
+	}
+	if found {
+		tm()
+		log.Printf("vendored: perfect hash found after %d attempts:\n%s", attempts, hasher.String())
+	} else {
+		log.Printf("vendored: no perfect hash found after %d attempts", attempts)
 	}
 }
 
@@ -133,7 +171,7 @@ func timer(context string) func() {
 // Install stringer tool:
 //  go install golang.org/x/tools/cmd/stringer@latest
 
-//go:generate stringer -type=Token,Intrinsic -linecomment -output stringers.go .
+//go:generate stringer -type=Token,Intrinsic,VendorIntrinsic -linecomment -output stringers.go .
 
 type Token int
 
@@ -530,4 +568,188 @@ func (intr Intrinsic) Version() (year int) {
 func (intr Intrinsic) IsValid() bool {
 	return intr > fortran66Start && intr < fortran2008End && intr != fortran77Start &&
 		intr != fortran90Start && intr != fortran95Start && intr != fortran2003Start && intr != fortran2008Start
+}
+
+type VendorIntrinsic int
+
+const (
+	vendorUndefined VendorIntrinsic = iota // undefined
+
+	// Common vendor intrinsics (shared across multiple compilers)
+	vendorCommonStart
+	VendorSYSTEM // SYSTEM
+	VendorMALLOC // MALLOC
+	VendorFREE   // FREE
+	VendorLOC    // LOC
+	VendorISNAN  // ISNAN
+	VendorSIZEOF // SIZEOF
+	// Command-line argument handling (legacy)
+	VendorIARGC  // IARGC
+	VendorGETARG // GETARG
+	VendorNARGS  // NARGS
+	// Type conversions
+	VendorDFLOAT // DFLOAT
+	VendorDCMPLX // DCMPLX
+	VendorDREAL  // DREAL
+	// Random numbers
+	VendorRAND  // RAND
+	VendorSRAND // SRAND
+	VendorIRAND // IRAND
+	// Bit operations (legacy names)
+	VendorLSHIFT // LSHIFT
+	VendorRSHIFT // RSHIFT
+	// Degree-based trigonometric
+	VendorSIND   // SIND
+	VendorCOSD   // COSD
+	VendorTAND   // TAND
+	VendorASIND  // ASIND
+	VendorACOSD  // ACOSD
+	VendorATAND  // ATAND
+	VendorATAN2D // ATAN2D
+	vendorCommonEnd
+
+	// Intel-specific intrinsics
+	vendorIntelStart VendorIntrinsic = iota + vendorCommonEnd
+	VendorQCMPLX                     // QCMPLX
+	VendorQEXT                       // QEXT
+	VendorQFLOAT                     // QFLOAT
+	VendorQREAL                      // QREAL
+	// String-to-value scanning
+	VendorDNUM // DNUM
+	VendorINUM // INUM
+	VendorJNUM // JNUM
+	VendorKNUM // KNUM
+	VendorQNUM // QNUM
+	VendorRNUM // RNUM
+	// Bit manipulation
+	VendorIBCHNG // IBCHNG
+	VendorISHA   // ISHA
+	VendorISHC   // ISHC
+	VendorISHL   // ISHL
+	VendorIXOR   // IXOR
+	// Query functions
+	VendorILEN         // ILEN
+	VendorMCLOCK       // MCLOCK
+	VendorSECNDS       // SECNDS
+	VendorCACHESIZE    // CACHESIZE
+	VendorEOF          // EOF
+	VendorFP_CLASS     // FP_CLASS
+	VendorINT_PTR_KIND // INT_PTR_KIND
+	// Address functions
+	VendorBADDRESS // BADDRESS
+	VendorIADDR    // IADDR
+	// Random
+	VendorRAN  // RAN
+	VendorRANF // RANF
+	// Cotan
+	VendorCOTAND // COTAND
+	vendorIntelEnd
+
+	// GNU-specific intrinsics
+	vendorGNUStart VendorIntrinsic = iota + vendorIntelEnd
+	// Time functions
+	VendorETIME   // ETIME
+	VendorDTIME   // DTIME
+	VendorDSECNDS // DSECNDS
+	VendorTIME    // TIME
+	VendorTIME8   // TIME8
+	VendorCTIME   // CTIME
+	VendorFDATE   // FDATE
+	VendorGMTIME  // GMTIME
+	VendorLTIME   // LTIME
+	VendorIDATE   // IDATE
+	VendorITIME   // ITIME
+	// File operations
+	VendorGETCWD // GETCWD
+	VendorCHDIR  // CHDIR
+	VendorRENAME // RENAME
+	VendorUNLINK // UNLINK
+	VendorLINK   // LINK
+	VendorSYMLNK // SYMLNK
+	VendorACCESS // ACCESS
+	VendorCHMOD  // CHMOD
+	VendorSTAT   // STAT
+	VendorLSTAT  // LSTAT
+	VendorFSTAT  // FSTAT
+	// File I/O
+	VendorFSEEK // FSEEK
+	VendorFTELL // FTELL
+	VendorFNUM  // FNUM
+	VendorFGET  // FGET
+	VendorFGETC // FGETC
+	VendorFPUT  // FPUT
+	VendorFPUTC // FPUTC
+	VendorFLUSH // FLUSH
+	// System information
+	VendorHOSTNM // HOSTNM
+	VendorGETLOG // GETLOG
+	VendorGETPID // GETPID
+	VendorGETUID // GETUID
+	VendorGETGID // GETGID
+	VendorGETENV // GETENV
+	VendorPUTENV // PUTENV
+	VendorISATTY // ISATTY
+	VendorTTYNAM // TTYNAM
+	// Process control
+	VendorALARM     // ALARM
+	VendorSIGNAL    // SIGNAL
+	VendorKILL      // KILL
+	VendorSLEEP     // SLEEP
+	VendorABORT     // ABORT
+	VendorEXIT      // EXIT
+	VendorBACKTRACE // BACKTRACE
+	// Error handling
+	VendorPERROR // PERROR
+	VendorIERRNO // IERRNO
+	VendorGERROR // GERROR
+	// Miscellaneous
+	VendorUMASK  // UMASK
+	VendorLNBLNK // LNBLNK
+	VendorCOTAN  // COTAN
+	VendorQSORT  // QSORT
+	vendorGNUEnd
+
+	// PGI/NVIDIA-specific intrinsics
+	vendorPGIStart VendorIntrinsic = iota + vendorGNUEnd
+	// Bitwise operations (function form)
+	VendorAND   // AND
+	VendorOR    // OR
+	VendorXOR   // XOR
+	VendorCOMPL // COMPL
+	VendorEQV   // EQV
+	VendorNEQV  // NEQV
+	// Type conversions
+	VendorZEXT  // ZEXT
+	VendorIZEXT // IZEXT
+	VendorINT8  // INT8
+	VendorJINT  // JINT
+	VendorJNINT // JNINT
+	VendorKNINT // KNINT
+	// Shift
+	VendorSHIFT // SHIFT
+	vendorPGIEnd
+)
+
+// Vendor returns the vendor/origin of the intrinsic.
+func (vi VendorIntrinsic) Vendor() string {
+	switch {
+	case vi > vendorPGIStart && vi < vendorPGIEnd:
+		return "PGI"
+	case vi > vendorGNUStart && vi < vendorGNUEnd:
+		return "GNU"
+	case vi > vendorIntelStart && vi < vendorIntelEnd:
+		return "Intel"
+	case vi > vendorCommonStart && vi < vendorCommonEnd:
+		return "Common"
+	default:
+		return ""
+	}
+}
+
+// IsValid returns true if the VendorIntrinsic is a valid vendor intrinsic.
+func (vi VendorIntrinsic) IsValid() bool {
+	return (vi > vendorCommonStart && vi < vendorCommonEnd) ||
+		(vi > vendorIntelStart && vi < vendorIntelEnd) ||
+		(vi > vendorGNUStart && vi < vendorGNUEnd) ||
+		(vi > vendorPGIStart && vi < vendorPGIEnd)
 }

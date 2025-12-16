@@ -240,6 +240,8 @@ func (phf *HashFinder) Search(hasher Hash, tableSizeBits int, inputs []string) (
 }
 
 // Apply combines the byte at IndexApplied with h using the coefficient's operation.
+// If IndexApplied is out of bounds for kw (positive index >= len or negative index
+// beyond start), h is returned unchanged and no operation is applied.
 func (coef *Coef) Apply(h uint, kw string) uint {
 	idx := coef.IndexApplied
 	var a uint
@@ -247,6 +249,8 @@ func (coef *Coef) Apply(h uint, kw string) uint {
 		a = uint(kw[len(kw)+idx]) * coef.Value
 	} else if idx >= 0 && idx < len(kw) {
 		a = uint(kw[idx]) * coef.Value
+	} else {
+		return h
 	}
 	switch coef.Op {
 	case OpAdd:
