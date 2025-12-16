@@ -4,6 +4,11 @@
 
 A Go library for finding perfect hash functions for static string sets.
 
+```
+exhaustive search for perfect hash for Go's 25 keywords, table size of 64 (98.86% collision free probability)
+```
+
+See working example for Go's keywords [`example_test.go`](./example_test.go).
 ## What is a Perfect Hash?
 
 A perfect hash function maps a set of keys to unique integers with no collisions. This is useful for:

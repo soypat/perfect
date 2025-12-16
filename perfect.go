@@ -5,6 +5,8 @@ package perfect
 import (
 	"errors"
 	"fmt"
+	"math"
+	"math/bits"
 	"slices"
 )
 
@@ -74,6 +76,29 @@ func (hs *HashSequential) Increment() (done bool) {
 	return hs.LenCoef.Value > hs.LenCoef.MaxValue // Check for super saturation of last coefficient which is never reset (length coefficient)
 }
 
+// SearchSpace returns the total number of hash functions that will be tried
+// in an exhaustive search (product of all coefficient search spaces).
+func (hs *HashSequential) SearchSpace() uint64 {
+	space := hs.LenCoef.SearchSpace()
+	if space == 0 {
+		return 0
+	}
+
+	for i := range hs.Coefs {
+		s := hs.Coefs[i].SearchSpace()
+		if s == 0 {
+			return 0
+		}
+		var of uint64
+		of, space = bits.Mul64(space, s)
+		if of != 0 {
+			panic("overflow in search space calculation")
+		}
+		space *= s
+	}
+	return space
+}
+
 // Coef is a single coefficient in the hash function.
 type Coef struct {
 	IndexApplied int  // Byte index to use. Negative indexes from end.
@@ -109,6 +134,73 @@ func (c *Coef) Increment() {
 
 // Saturated returns true when the coefficient has reached its maximum value.
 func (c *Coef) Saturated() bool { return c.Value >= c.MaxValue }
+
+// SearchSpace returns the number of values this coefficient iterates through.
+func (c *Coef) SearchSpace() uint64 {
+	start := uint64(c.StartValue)
+	if start == 0 {
+		start = 1
+	}
+	if start >= uint64(c.MaxValue) {
+		return 0
+	}
+	if c.OnlyPow2 {
+		// Values: start, start*2, start*4, ... until >= MaxValue
+		// Count = floor(log2(MaxValue/start)) + 1
+		count := uint64(0)
+		for v := start; v < uint64(c.MaxValue); v *= 2 {
+			count++
+		}
+		return count
+	}
+	return uint64(c.MaxValue) - start
+}
+
+// CollisionFreeProbability returns the probability that a single perfectly random
+// hash function would map all inputs to unique slots (no collisions).
+// This is the birthday problem: P = m! / ((m-n)! × m^n) where m=2^tableSizeBits, n=inputs.
+func (phf *HashFinder) CollisionFreeProbability(tableSizeBits int, inputs int) (float64, error) {
+	if tableSizeBits <= 0 || tableSizeBits > 32 {
+		return 0, errors.New("zero/negative bits for table size or too large")
+	}
+	if inputs <= 0 {
+		return 0, errors.New("zero inputs")
+	}
+	m := float64(uint(1) << tableSizeBits)
+	n := float64(inputs)
+	if n > m {
+		return 0, nil // impossible to have no collisions
+	}
+	// Use log-gamma for numerical stability:
+	// log(P) = log(m!) - log((m-n)!) - n*log(m)
+	lgammaM1, _ := math.Lgamma(m + 1)      // log(m!)
+	lgammaMN1, _ := math.Lgamma(m - n + 1) // log((m-n)!)
+	logP := lgammaM1 - lgammaMN1 - n*math.Log(m)
+	return math.Exp(logP), nil
+}
+
+// SearchSuccessProbability returns the probability of finding at least one
+// collision-free hash when trying `attempts` independent random hash functions.
+// P(success) = 1 - (1 - p)^attempts, where p is the single-attempt probability.
+func (phf *HashFinder) SearchSuccessProbability(tableSizeBits int, inputs int, attempts uint64) (float64, error) {
+	if attempts <= 0 {
+		return 0, errors.New("zero/negative attempts")
+	}
+	p, err := phf.CollisionFreeProbability(tableSizeBits, inputs)
+	if err != nil {
+		return 0, err
+	}
+	if p == 0 {
+		return 0, nil
+	}
+	if p == 1 {
+		return 1, nil
+	}
+	// Use log1p/expm1 for numerical stability with small p:
+	// 1 - (1-p)^k = -expm1(k * log1p(-p))
+	k := float64(attempts)
+	return -math.Expm1(k * math.Log1p(-p)), nil
+}
 
 // Search finds coefficients that produce unique hashes for all inputs.
 // Returns the number of attempts and an error if no perfect hash was found.

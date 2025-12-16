@@ -26,13 +26,18 @@ func ExampleHashFinder_goKeywords() {
 		log.Fatalln(err)
 	}
 	const tablesizebits = 6
-	log.Printf("exhaustive search for perfect hash for Go's %d keywords, table size of %d", len(keywords), 1<<tablesizebits)
+	prob, err := phf.SearchSuccessProbability(tablesizebits, len(keywords), hasher.SearchSpace())
+	if err != nil {
+		log.Fatalln(err)
+	}
+	fmt.Printf("exhaustive search for perfect hash for Go's %d keywords, table size of %d (%.2f%% collision free probability)\n", len(keywords), 1<<tablesizebits, 100*prob)
 	attempts, err := phf.Search(hasher, tablesizebits, keywords)
 	if err != nil {
 		log.Fatalln(err, "after", attempts, "attempts")
 	}
 	fmt.Print(hasher.String())
 	// Output:
+	// exhaustive search for perfect hash for Go's 25 keywords, table size of 64 (98.86% collision free probability)
 	// h := uint(len(s))*8
 	// h ^= uint(s[0])*1
 	// h ^= uint(s[1])*8
